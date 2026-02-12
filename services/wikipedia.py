@@ -200,18 +200,3 @@ class WikipediaAnalyzer:
             'total_words': stats['total_words'],
             'filtered_words': len(filtered_count)
         }
-
-    
-
-async def run():
-    article = "Python (programming language)"
-    try:
-        async with WikipediaAnalyzer() as analyzer:
-            await analyzer.crawl(article, 0, 1)
-            print(analyzer.filter_by_percentile(98, ["bezae"])["word_count"])
-    except Exception as e:
-        logger.error(f"{e}")
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(run())
