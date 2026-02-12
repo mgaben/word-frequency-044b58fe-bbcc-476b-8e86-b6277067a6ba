@@ -1,0 +1,23 @@
+[project]
+name = "wikipedia-word-frequency"
+version = "0.1.0"
+description = "Wikipedia Word Frequency Analysis API"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4==4.14.3",
+    "fastapi[standard]==0.128.8",
+    "lxml==6.0.2",
+    "httpx==0.28.1"
+]
+
+[tool.setuptools.packages.find]
+include = ["services*", "api*", "utils*"]
+
+[dependency-groups]
+dev = [
+    "httpx==0.28.1",
+    "pytest==9.0.2",
+    "pytest-asyncio==1.3.0",
+    "pytest-cov>=7.0.0",
+]
