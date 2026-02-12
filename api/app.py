@@ -1,7 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from api.models import KeywordsRequest, WordFrequency
+from api.models import KeywordsRequest, KeywordFrequencyResponse
 from utils.logger import get_logger
 from services.wikipedia import WikipediaAnalyzer
 
@@ -30,7 +30,8 @@ async def root():
         "name": "Wikipedia Word-Frequency Analyzer",
         "version": "1.0.0",
         "endpoints": {
-            "/word-frequency": "GET - Analyze word frequencies"
+            "/word-frequency": "GET - Analyze word frequencies",
+            "/keywords": "POST - Get filtered keywords by percentile"
         }
     }
 
@@ -40,14 +41,17 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/word-frequency", response_model=WordFrequency)
-async def word_frequency(article: str, depth: int):
+@app.get("/word-frequency", response_model=KeywordFrequencyResponse)
+async def word_frequency(
+    article: str = Query(..., min_length=1, description="Wikipedia article title"), 
+    max_depth: int = Query(..., ge=0, le=10, description="Traversal depth")
+):
     try:
         async with WikipediaAnalyzer() as analyzer:
-            await analyzer.crawl(article, 0, 1)
+            await analyzer.crawl(article, 0, max_depth)
             stats = analyzer.calculate_statistics()
 
-            response = WordFrequency(
+            response = KeywordFrequencyResponse(
                 word_count=stats['word_count'],
                 word_percentage=stats['word_percentage']
             )
@@ -58,6 +62,39 @@ async def word_frequency(article: str, depth: int):
             
     except Exception as e:
         logger.error(f"Error in word-frequency endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Internal server error during analysis: {str(e)}"
+        )
+
+@app.post("/keywords", response_model=KeywordFrequencyResponse)
+async def get_keywords(request: KeywordsRequest):
+    """
+    Get filtered keywords based on percentile threshold and ignore list.
+    Returns filtered word counts and percentages.
+    """
+    try:
+        logger.info(
+            f"Starting keywords analysis for '{request.article}' with depth {request.depth}, "
+            f"percentile {request.percentile}, ignoring {len(request.ignore_list)} words"
+        )
+        
+        async with WikipediaAnalyzer() as analyzer:
+            await analyzer.crawl(request.article, 0, request.depth)
+            filtered_stats = analyzer.filter_by_percentile(
+                request.percentile,
+                request.ignore_list
+            )
+            
+            response = KeywordFrequencyResponse(
+                word_count=filtered_stats['word_count'],
+                word_percentage=filtered_stats['word_percentage']
+            )
+            
+            return response
+            
+    except Exception as e:
+        logger.error(f"Error in keywords endpoint: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error during analysis: {str(e)}"

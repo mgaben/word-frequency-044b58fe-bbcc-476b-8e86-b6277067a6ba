@@ -9,6 +9,6 @@ class KeywordsRequest(BaseModel):
     percentile: int
 
 
-class WordFrequency(BaseModel):
+class KeywordFrequencyResponse(BaseModel):
     word_count: Dict[str, int]
     word_percentage: Dict[str, float]
