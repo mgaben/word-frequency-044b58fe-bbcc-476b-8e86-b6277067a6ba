@@ -1,0 +1,11 @@
+.venv
+.git
+.claude
+.pytest_cache
+.coverage
+__pycache__
+*.pyc
+tests/
+CLAUDE.md
+README.md
+.env.example
