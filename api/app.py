@@ -1,16 +1,38 @@
+from contextlib import asynccontextmanager
+
+import httpx
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from api.models import KeywordsRequest, KeywordFrequencyResponse
 from utils.logger import get_logger
-from services.wikipedia import WikipediaAnalyzer
+from services.wikipedia import WikipediaAnalyzer, DEFAULT_TIMEOUT
 
 logger = get_logger(__name__)
+
+http_client: httpx.AsyncClient | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global http_client
+    http_client = httpx.AsyncClient(
+        timeout=DEFAULT_TIMEOUT,
+        follow_redirects=True,
+        limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        headers={"User-Agent": "Mozilla/5.0 (compatible; WordFrequencyBot/1.0; +https://github.com/)"},
+    )
+    logger.info("HTTP client initialized")
+    yield
+    await http_client.aclose()
+    logger.info("HTTP client closed")
+
 
 app = FastAPI(
     title="Wikipedia Word-Frequency Analyzer",
     description="Analyze word frequencies across Wikipedia articles with depth traversal",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 @app.exception_handler(HTTPException)
@@ -46,8 +68,9 @@ async def word_frequency(
     article: str = Query(..., min_length=1, description="Wikipedia article title"), 
     max_depth: int = Query(..., ge=0, le=10, description="Traversal depth")
 ):
+    logger.info(f"Starting word-frequency analysis for '{article}' with depth {max_depth}")
     try:
-        async with WikipediaAnalyzer() as analyzer:
+        async with WikipediaAnalyzer(client=http_client) as analyzer:
             await analyzer.crawl(article, 0, max_depth)
             stats = analyzer.calculate_statistics()
 
@@ -56,12 +79,17 @@ async def word_frequency(
                 word_percentage=stats['word_percentage']
             )
 
-            logger.info(f"Analysis complete")
-            
+            logger.info(
+                f"Word-frequency analysis complete for '{article}': "
+                f"{stats['total_words']} total words, "
+                f"{len(stats['word_count'])} unique words, "
+                f"{len(analyzer.visited_articles)} articles processed"
+            )
+
             return response
-            
+
     except Exception as e:
-        logger.error(f"Error in word-frequency endpoint: {e}", exc_info=True)
+        logger.error(f"Error in word-frequency endpoint for '{article}': {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Internal server error during analysis: {str(e)}"
@@ -79,7 +107,7 @@ async def get_keywords(request: KeywordsRequest):
             f"percentile {request.percentile}, ignoring {len(request.ignore_list)} words"
         )
         
-        async with WikipediaAnalyzer() as analyzer:
+        async with WikipediaAnalyzer(client=http_client) as analyzer:
             await analyzer.crawl(request.article, 0, request.depth)
             filtered_stats = analyzer.filter_by_percentile(
                 request.percentile,
@@ -90,7 +118,14 @@ async def get_keywords(request: KeywordsRequest):
                 word_count=filtered_stats['word_count'],
                 word_percentage=filtered_stats['word_percentage']
             )
-            
+
+            logger.info(
+                f"Keywords analysis complete for '{request.article}': "
+                f"{filtered_stats['filtered_words']} keywords filtered from "
+                f"{filtered_stats['total_words']} total words, "
+                f"{len(analyzer.visited_articles)} articles processed"
+            )
+
             return response
             
     except Exception as e:
