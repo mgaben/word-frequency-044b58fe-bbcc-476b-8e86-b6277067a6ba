@@ -1,6 +1,8 @@
 from contextlib import asynccontextmanager
 
 import httpx
+from dotenv import load_dotenv
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
 
@@ -8,6 +10,7 @@ from api.models import KeywordsRequest, KeywordFrequencyResponse
 from utils.logger import get_logger
 from services.wikipedia import WikipediaAnalyzer
 
+load_dotenv()
 logger = get_logger(__name__)
 
 http_client: httpx.AsyncClient | None = None
