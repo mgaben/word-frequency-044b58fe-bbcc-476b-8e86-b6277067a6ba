@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 
 from api.models import KeywordsRequest, KeywordFrequencyResponse
 from utils.logger import get_logger
-from services.wikipedia import WikipediaAnalyzer, DEFAULT_TIMEOUT
+from services.wikipedia import WikipediaAnalyzer
 
 logger = get_logger(__name__)
 
@@ -17,7 +17,7 @@ http_client: httpx.AsyncClient | None = None
 async def lifespan(app: FastAPI):
     global http_client
     http_client = httpx.AsyncClient(
-        timeout=DEFAULT_TIMEOUT,
+        timeout=httpx.Timeout(10.0, connect=5.0),
         follow_redirects=True,
         limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
         headers={"User-Agent": "Mozilla/5.0 (compatible; WordFrequencyBot/1.0; +https://github.com/)"},

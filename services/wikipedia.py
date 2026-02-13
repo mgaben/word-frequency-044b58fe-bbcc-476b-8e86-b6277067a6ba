@@ -17,8 +17,8 @@ logger = get_logger(__name__)
 class WikipediaAnalyzer:
     """Class to handle Wikipedia crawling and text extraction."""
     def __init__(self, client: httpx.AsyncClient | None = None):
-        self._wikipedia_url = os.getenv("wikipedia_url", "https://en.wikipedia.org/wiki/")
-        self._fetch_retry = os.getenv("fetch_retry", 3)
+        self._wikipedia_url = os.getenv("WIKIPEDIA_URL", "https://en.wikipedia.org/wiki/")
+        self._fetch_retry = int(os.getenv("FETCH_RETRY", "3"))
         self._owns_client = client is None
         self.client = client or httpx.AsyncClient(
             timeout=httpx.Timeout(10.0, connect=5.0),
