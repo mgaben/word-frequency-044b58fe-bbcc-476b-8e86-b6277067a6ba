@@ -1,3 +1,4 @@
+import os
 import re
 
 from collections import Counter
@@ -12,15 +13,15 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
-
 
 class WikipediaAnalyzer:
     """Class to handle Wikipedia crawling and text extraction."""
-    def __init__(self):
-        self._wikipedia_url = "https://en.wikipedia.org/wiki/" 
-        self.client = httpx.AsyncClient(
-            timeout=DEFAULT_TIMEOUT,
+    def __init__(self, client: httpx.AsyncClient | None = None):
+        self._wikipedia_url = os.getenv("WIKIPEDIA_URL", "https://en.wikipedia.org/wiki/")
+        self._fetch_retry = int(os.getenv("FETCH_RETRY", "3"))
+        self._owns_client = client is None
+        self.client = client or httpx.AsyncClient(
+            timeout=httpx.Timeout(10.0, connect=5.0),
             follow_redirects=True,
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
             headers={"User-Agent": "Mozilla/5.0 (compatible; WordFrequencyBot/1.0; +https://github.com/)"},
@@ -30,13 +31,18 @@ class WikipediaAnalyzer:
 
     async def __aenter__(self):
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.client.aclose()
-    
+        if self._owns_client:
+            await self.client.aclose()
+
     @property
     def wikipedia_url(self):
         return self._wikipedia_url
+    
+    @property
+    def fetch_retry(self):
+        return self._fetch_retry
 
     def _extract_text_from_html(self, html_content: str) -> str:
         """Extract clean text from Wikipedia HTML"""
@@ -67,7 +73,7 @@ class WikipediaAnalyzer:
     async def fetch_article(self, title: str) -> str:
         """Fetch the text content of a Wikipedia article by title."""
         url = self.wikipedia_url + title.replace(' ', '_')
-        for attempt in range(3):
+        for attempt in range(self.fetch_retry):
             try:
                 logger.info(f"Fetching article: {title} (attempt {attempt + 1})")
                 response = await self.client.get(url)
